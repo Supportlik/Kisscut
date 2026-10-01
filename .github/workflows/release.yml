@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build the distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Run the test suite before releasing anything
+        run: |
+          uv sync --locked --dev
+          uv run --no-sync pytest -q -m "not models"
+
+      - name: Build
+        run: uv build
+
+      - name: Check the distribution metadata
+        run: uvx twine check --strict dist/*
+
+      # The web interface is data inside the package, not Python - if it ever
+      # stopped being packaged, the CLI would still work and the studio would
+      # 404 on every asset. Cheaper to catch here than after a release.
+      - name: Verify the studio is in the wheel
+        run: |
+          python - <<'PY'
+          import glob, zipfile
+          names = zipfile.ZipFile(sorted(glob.glob("dist/*.whl"))[-1]).namelist()
+          for needed in ("kisscut/web/index.html", "kisscut/web/app.js", "kisscut/web/style.css"):
+              assert needed in names, f"{needed} missing from the wheel"
+          print("studio files present")
+          PY
+
+      # A tag must name the version that is actually in the package, otherwise
+      # v0.1.1 could ship 0.1.0 to PyPI, where it can never be replaced.
+      - name: Verify the tag matches the package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(ls dist/*.whl | sed -E 's/.*kisscut-([^-]+)-py3.*/\1/')"
+          echo "tag=$tag built=$version"
+          test "$tag" = "$version"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    # Trusted publishing: PyPI verifies this workflow's OIDC identity, so the
+    # repository needs no API token. Configure the publisher on PyPI first.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/kisscut
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@v1.14.2
+
+  github-release:
+    name: Create the GitHub release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: dist/*
+          generate_release_notes: true
