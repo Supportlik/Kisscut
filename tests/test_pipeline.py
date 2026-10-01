@@ -46,7 +46,7 @@ def test_develop_removes_a_colour_cast():
     tinted = np.full((80, 80, 3), 120, np.uint8)
     tinted[..., 2] = 200                                   # heavy blue cast
     before = np.asarray(Image.fromarray(tinted)).astype(float)
-    after = np.asarray(photo.develop(Image.fromarray(tinted), "warm")).astype(float)
+    after = np.asarray(photo.develop(Image.fromarray(tinted), "print")).astype(float)
     assert after[..., 2].mean() - after[..., 0].mean() < before[..., 2].mean() - before[..., 0].mean()
 
 
@@ -160,3 +160,42 @@ def test_model_cutout_produces_a_mask():
     shop = Workshop(busy_photo(), "sample")
     sticker = shop.render(Recipe(source="model", model="isnet-general-use"))
     assert np.asarray(sticker.split()[3]).max() == 255
+
+
+def test_as_shot_leaves_the_colours_alone():
+    """The default look must not wash a photo out - it only sharpens.
+
+    Sharpening lifts local contrast and with it a little saturation, so the
+    test asks what actually matters: as-shot has to stay far closer to the
+    original than print, which is allowed to rebuild the whole image.
+    """
+    source = busy_photo()
+    before = np.asarray(source.convert("HSV")).astype(float)
+
+    def drift(look):
+        after = np.asarray(photo.develop(source, look).convert("HSV")).astype(float)
+        return (abs(after[..., 2].mean() - before[..., 2].mean()) / before[..., 2].mean(),
+                abs(after[..., 1].mean() - before[..., 1].mean()) / before[..., 1].mean())
+
+    light, colour = drift("as-shot")
+    print_light, print_colour = drift("print")
+    assert light < 0.05, f"as-shot shifted brightness by {light:.0%}"
+    assert light < print_light and colour < print_colour
+
+
+def test_print_look_is_the_one_that_corrects():
+    """...while `print` is allowed to change plenty, that is its job."""
+    tinted = np.full((80, 80, 3), 120, np.uint8)
+    tinted[..., 2] = 200
+    out = np.asarray(photo.develop(Image.fromarray(tinted), "print")).astype(float)
+    assert out[..., 2].mean() - out[..., 0].mean() < 80
+
+
+def test_curved_border_is_antialiased():
+    """A round die must not come out as a staircase."""
+    motif = Image.new("RGBA", (300, 300), (40, 90, 160, 0))
+    motif.putalpha(shapes.die("circle", 300))
+    alpha = np.asarray(add_border(motif, 12, (255, 255, 255)).split()[3]).astype(int)
+    soft = ((alpha > 8) & (alpha < 247)).sum()
+    circumference = 2 * np.pi * (150 + 12)
+    assert soft > circumference * 0.8, f"only {soft} soft pixels along {circumference:.0f}"

@@ -19,7 +19,8 @@
     <label class="btn btn-ghost">
       Open photo<input type="file" id="fileInput" accept="image/*" hidden>
     </label>
-    <button class="btn btn-solid" id="saveBtn" disabled>Save sticker</button>
+    <button class="btn btn-solid" id="downloadPng" disabled>Download PNG</button>
+    <button class="btn" id="downloadWebp" disabled title="The format WhatsApp wants, under 100 KB">WebP</button>
   </div>
 </header>
 
@@ -104,6 +105,9 @@
         <input type="checkbox" id="shadow" checked>
         <span>Drop shadow</span>
       </label>
+      <div class="row-2">
+        <button class="btn btn-quiet" id="saveFolder" disabled>Save to folder instead</button>
+      </div>
 
       <details class="more">
         <summary>Colour and sharpness</summary>

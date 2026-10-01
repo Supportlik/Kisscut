@@ -12,7 +12,8 @@ from .workshop import Recipe, Workshop, as_png, as_webp
 
 
 def _add_recipe_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--look", default="warm", choices=list(photo.LOOKS))
+    parser.add_argument("--look", default=None, choices=list(photo.LOOKS),
+                        help="default: print for a photographed print, otherwise as-shot")
     parser.add_argument("--shape", default="silhouette", choices=list(shapes.SHAPES))
     parser.add_argument("--model", default="birefnet-portrait", choices=list(cutout.MODELS))
     parser.add_argument("--source", default="model", choices=["model", "full"],
@@ -32,7 +33,7 @@ def _add_recipe_flags(parser: argparse.ArgumentParser) -> None:
 def _recipe_from(args, shop: Workshop) -> Recipe:
     return Recipe(
         rotate=shop.suggested_angle if args.rotate is None else args.rotate,
-        look=args.look,
+        look=args.look or ("print" if shop.suggested_angle else "as-shot"),
         shape=args.shape,
         model=args.model,
         source=args.source,

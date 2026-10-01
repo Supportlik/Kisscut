@@ -12,12 +12,14 @@ from PIL import Image, ImageDraw, ImageFilter
 from scipy import ndimage as ndi
 
 #: Models rembg can fetch, with what each is good for.
+#: The time is what one cutout costs on a normal CPU - worth knowing before
+#: picking, since everything else in the studio reacts instantly.
 MODELS: dict[str, str] = {
-    "birefnet-portrait": "People, cleanest edges",
-    "birefnet-general-lite": "Anything, keeps surroundings",
-    "u2net_human_seg": "People, generous",
-    "isnet-general-use": "Objects, hard edges",
-    "u2net": "General purpose",
+    "birefnet-portrait": "People, cleanest edges (~6 s)",
+    "birefnet-general-lite": "Anything, keeps surroundings (~4 s)",
+    "u2net_human_seg": "People, generous (~2 s)",
+    "isnet-general-use": "Objects, hard edges (~2 s)",
+    "u2net": "General purpose (~2 s)",
 }
 
 _sessions: dict[str, object] = {}

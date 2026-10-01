@@ -31,14 +31,14 @@ SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
 #: Thumbnails offered under the canvas: a name and the fields it overrides.
 SUGGESTIONS = [
-    ("Classic", dict(shape="silhouette", border=14, shadow=False, look="natural")),
-    ("Drop shadow", dict(shape="silhouette", border=18, shadow=True, look="warm")),
+    ("Classic", dict(shape="silhouette", border=14, shadow=False)),
+    ("Drop shadow", dict(shape="silhouette", border=18, shadow=True)),
     ("Punchy", dict(shape="silhouette", border=14, shadow=True, look="punchy")),
-    ("Circle", dict(shape="circle", border=16, shadow=True, look="warm")),
-    ("Speech bubble", dict(shape="bubble", border=16, shadow=True, look="warm")),
-    ("Seal", dict(shape="seal", border=14, shadow=True, look="warm")),
-    ("Heart", dict(shape="heart", border=16, shadow=True, look="warm")),
-    ("Hairline", dict(shape="silhouette", border=5, shadow=False, look="natural")),
+    ("Circle", dict(shape="circle", border=16, shadow=True)),
+    ("Speech bubble", dict(shape="bubble", border=16, shadow=True)),
+    ("Seal", dict(shape="seal", border=14, shadow=True)),
+    ("Heart", dict(shape="heart", border=16, shadow=True)),
+    ("Hairline", dict(shape="silhouette", border=5, shadow=False)),
 ]
 
 
@@ -153,6 +153,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._suggestions()
             if path == "/api/trace":
                 return self._trace()
+            if path == "/api/export":
+                return self._export()
             if path == "/api/save":
                 return self._save()
         except ValueError as err:
@@ -178,6 +180,9 @@ class Handler(BaseHTTPRequestHandler):
             "width": shop.source.width,
             "height": shop.source.height,
             "angle": shop.suggested_angle,
+            # A tilted print needs the repair chain; anything else is better
+            # left as it was shot.
+            "look": "print" if shop.suggested_angle else "as-shot",
             "source": f"/source/{key}",
         })
 
@@ -190,7 +195,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def _preview(self):
         shop, recipe, _ = self._recipe()
-        self._send(200, as_png(shop.render(recipe)), "image/png")
+        sticker = shop.render(recipe)
+        # How much of the square is actually see-through. A sticker cut to a
+        # square die with the whole frame kept is only transparent in the
+        # corners, and that is worth seeing before the file is downloaded.
+        import numpy as np
+        clear = round(100 * float((np.asarray(sticker.split()[3]) < 8).mean()))
+        self._send(200, as_png(sticker), "image/png", {"X-Transparent": str(clear)})
 
     def _suggestions(self):
         shop, recipe, _ = self._recipe()
@@ -216,6 +227,22 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("no red outline found - draw one in pure red")
         points = _mask_to_polygon(mask)
         self._json({"lasso": points})
+
+    def _export(self):
+        """Hand the finished sticker to the browser as a download."""
+        shop, recipe, data = self._recipe()
+        fmt = "webp" if str(data.get("format", "png")).lower() == "webp" else "png"
+        sticker = shop.render(recipe)
+        stem = SAFE_NAME.sub("-", str(data.get("name") or shop.name)) or "sticker"
+
+        if fmt == "webp":
+            body, _quality = as_webp(sticker)
+            kind = "image/webp"
+        else:
+            body = as_png(sticker)
+            kind = "image/png"
+        self._send(200, body, kind,
+                   {"Content-Disposition": f'attachment; filename="{stem}.{fmt}"'})
 
     def _save(self):
         shop, recipe, data = self._recipe()

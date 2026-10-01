@@ -12,16 +12,27 @@ import math
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 
-#: Preset names map to the knobs below. ``raw`` only sharpens.
+#: Preset names map to the knobs below.
+#:
+#: Only ``print`` runs the full repair chain. It is meant for a photo *of a
+#: photo* and would wash out an ordinary snapshot: gray-world shifts colours
+#: that were never wrong, the shadow lift flattens contrast that was fine, and
+#: the median filter costs detail a clean image does not need to lose. So
+#: ``as-shot`` is the default, and ``print`` is offered when a tilted print is
+#: actually detected.
 LOOKS: dict[str, dict] = {
-    "natural": dict(gamma=0.85, local=(40, 0.55), saturation=1.28, contrast=1.05,
-                    sharpen=(2.0, 125, 4), warmth=None),
-    "warm": dict(gamma=0.83, local=(40, 0.60), saturation=1.35, contrast=1.08,
-                 sharpen=(1.8, 150, 3), warmth=(0.86, 1.08)),
-    "punchy": dict(gamma=0.82, local=(35, 0.70), saturation=1.50, contrast=1.14,
+    "as-shot": dict(denoise=False, balance=False, black_point=None, gamma=1.00,
+                    local=(40, 0.00), saturation=1.00, contrast=1.00,
+                    sharpen=(1.4, 70, 3), warmth=None),
+    "natural": dict(denoise=False, balance=False, black_point=0.2, gamma=1.00,
+                    local=(40, 0.25), saturation=1.08, contrast=1.04,
+                    sharpen=(1.6, 110, 3), warmth=None),
+    "print": dict(denoise=True, balance=True, black_point=0.5, gamma=0.83,
+                  local=(40, 0.60), saturation=1.35, contrast=1.08,
+                  sharpen=(1.8, 150, 3), warmth=(0.86, 1.08)),
+    "punchy": dict(denoise=False, balance=False, black_point=0.4, gamma=0.95,
+                   local=(35, 0.45), saturation=1.35, contrast=1.14,
                    sharpen=(1.6, 170, 3), warmth=None),
-    "raw": dict(gamma=1.00, local=(40, 0.00), saturation=1.00, contrast=1.00,
-                sharpen=(1.5, 60, 4), warmth=None),
 }
 
 
@@ -68,12 +79,16 @@ def develop(img: Image.Image, look: str = "warm", sharpness: float = 1.0,
     ``sharpness``, ``saturation`` and ``brightness`` are multipliers on top of
     the preset, so 1.0 means "exactly the preset".
     """
-    preset = LOOKS.get(look, LOOKS["warm"])
-    img = img.convert("RGB").filter(ImageFilter.MedianFilter(3))
+    preset = LOOKS.get(look, LOOKS["as-shot"])
+    img = img.convert("RGB")
+    if preset["denoise"]:
+        img = img.filter(ImageFilter.MedianFilter(3))
 
     a = np.asarray(img).astype(np.float32)
-    a = _gray_world(a)
-    a = _black_point(a, 0.5)
+    if preset["balance"]:
+        a = _gray_world(a)
+    if preset["black_point"] is not None:
+        a = _black_point(a, preset["black_point"])
     a = _lift_shadows(a, preset["gamma"] / max(brightness, 0.05))
     if preset["warmth"]:
         a = _warm_shadows(a, *preset["warmth"])

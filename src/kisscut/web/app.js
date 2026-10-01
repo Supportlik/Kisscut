@@ -12,7 +12,7 @@ const state = {
   bg: "light",
   drag: null,
   recipe: {
-    rotate: 0, crop: null, look: "warm", sharpness: 1, saturation: 1, brightness: 1,
+    rotate: 0, crop: null, look: "as-shot", sharpness: 1, saturation: 1, brightness: 1,
     shape: "silhouette", source: "model", model: "birefnet-portrait", lasso: [],
     pop_out: true, border: 14, border_color: "#ffffff", shadow: true,
     zoom: 1, offset_x: 0, offset_y: 0,
@@ -176,8 +176,12 @@ async function renderPreview() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     previewUrl = URL.createObjectURL(blob);
     for (const id of ["previewImg", "chatLight", "chatDark"]) $(id).src = previewUrl;
+    const clear = Number(response.headers.get("X-Transparent") || 0);
     $("previewMeta").textContent =
-      `512 × 512 · transparent · ${state.recipe.shape} · border ${state.recipe.border} px`;
+      `512 × 512 · ${clear}% transparent · ${state.recipe.shape} · border ${state.recipe.border} px`;
+    $("previewMeta").title = clear < 6
+      ? "Almost nothing is cut away - pick a cutout in step 3 or a rounder die in step 4."
+      : "";
   } catch (error) {
     toast(error.message, "error");
   } finally {
@@ -234,15 +238,17 @@ async function openFile(file) {
     state.recipe.crop = null;
     state.recipe.lasso = [];
     state.recipe.rotate = info.angle || 0;
+    state.recipe.look = info.look || "as-shot";
 
     $("photoName").textContent = `${file.name} · ${info.width} × ${info.height}`;
-    $("saveBtn").disabled = false;
+    for (const id of ["downloadPng", "downloadWebp", "saveFolder"]) $(id).disabled = false;
     $("stageEmpty").hidden = true;
     $("rotateRow").hidden = false;
     $("tiltNote").hidden = !info.angle;
     if (info.angle) {
       $("tiltNote").textContent =
-        `Looks like a photo of a print, tilted ${info.angle}° - straightened for you.`;
+        `Looks like a photo of a print, tilted ${info.angle}° - straightened, ` +
+        `and set to the "print" look to clear the haze.`;
     }
     syncControls();
 
@@ -333,22 +339,28 @@ function slider(id, key, format) {
 
 function dieIcon(shape) {
   const svg = (body) => `<svg viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
-  const polar = (points, inner, outer, wobble) => {
+  const points = (steps, radius) => {
     const pts = [];
-    for (let i = 0; i < points; i++) {
-      const t = (i / points) * Math.PI * 2 - Math.PI / 2;
-      const r = wobble ? 10 * (1 - 0.08 + 0.08 * Math.cos(points * t)) : (i % 2 ? inner : outer);
+    for (let i = 0; i < steps; i++) {
+      const t = (i / steps) * Math.PI * 2 - Math.PI / 2;
+      const r = radius(i, t);
       pts.push(`${(12 + r * Math.cos(t)).toFixed(2)},${(12 + r * Math.sin(t)).toFixed(2)}`);
     }
     return `<polygon points="${pts.join(" ")}"/>`;
   };
+  // Fewer, deeper waves than the real die: at 24 px the shape has to read as
+  // a scalloped edge, and eighteen of them would just blur into a circle.
+  const rosette = (waves, depth) =>
+    points(waves * 10, (_, t) => 10.5 * (1 - depth + depth * Math.cos(waves * t)));
+  const star = (spikes, inner, outer) =>
+    points(spikes * 2, (i) => (i % 2 ? inner : outer));
   switch (shape) {
     case "circle": return svg('<circle cx="12" cy="12" r="10"/>');
     case "square": return svg('<rect x="2" y="2" width="20" height="20" rx="2"/>');
     case "rounded": return svg('<rect x="2" y="2" width="20" height="20" rx="6"/>');
     case "bubble": return svg('<path d="M3 4h18a1 1 0 011 1v11a1 1 0 01-1 1H10l-4 4v-4H3a1 1 0 01-1-1V5a1 1 0 011-1z"/>');
-    case "seal": return svg(polar(144, 0, 0, true));
-    case "burst": return svg(polar(24, 6.2, 10.5, false));
+    case "seal": return svg(rosette(10, 0.09));
+    case "burst": return svg(star(12, 6.2, 10.5));
     case "heart": return svg('<path d="M12 21C6 16.5 2.5 13.3 2.5 9.3 2.5 6.4 4.8 4 7.8 4c1.8 0 3.3.9 4.2 2.2C12.9 4.9 14.4 4 16.2 4c3 0 5.3 2.4 5.3 5.3 0 4-3.5 7.2-9.5 11.7z"/>');
     default: return svg('<path d="M9 2.6c3-1.2 6 .4 7.4 2.6 1 1.6 3.4 1.4 4.6 3.2 1.5 2.3-.2 5-1.6 6.6-1.7 2-1.4 4.6-3.6 6.3-2.5 2-6.2 1.3-8.6-.6-2.2-1.7-2.2-4.2-3.6-6.2C2.2 12.3.8 9.6 2 7.2 3.3 4.6 6.2 3.7 9 2.6z"/>');
   }
@@ -478,9 +490,40 @@ async function start() {
     refresh({ heavy: true });
   });
 
-  $("saveBtn").addEventListener("click", async () => {
+  async function download(format) {
     if (!state.id) return;
-    $("saveBtn").disabled = true;
+    const button = format === "webp" ? $("downloadWebp") : $("downloadPng");
+    button.disabled = true;
+    try {
+      const response = await postJSON("/api/export", {
+        id: state.id, recipe: state.recipe, name: state.name, format,
+      });
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${state.name}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      const kb = Math.round(blob.size / 1024);
+      const tooBig = format === "webp" && blob.size > 100000;
+      toast(`${state.name}.${format} downloaded (${kb} KB)` +
+            (tooBig ? " - over WhatsApp's 100 KB limit" : ""), tooBig ? "error" : "info");
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  $("downloadPng").addEventListener("click", () => download("png"));
+  $("downloadWebp").addEventListener("click", () => download("webp"));
+
+  $("saveFolder").addEventListener("click", async () => {
+    if (!state.id) return;
+    $("saveFolder").disabled = true;
     try {
       const response = await postJSON("/api/save", {
         id: state.id, recipe: state.recipe, name: state.name,
@@ -492,7 +535,7 @@ async function start() {
     } catch (error) {
       toast(error.message, "error");
     } finally {
-      $("saveBtn").disabled = false;
+      $("saveFolder").disabled = false;
     }
   });
 

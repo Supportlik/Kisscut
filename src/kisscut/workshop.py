@@ -13,7 +13,10 @@ from scipy import ndimage as ndi
 
 from . import cutout, photo, shapes
 
-WORK_EDGE = 900         # longest edge we compute on; preview and export share it
+# Big enough that a subject filling part of the frame is still scaled *down*
+# into the 512 px sticker rather than up - upscaling is what makes a cutout
+# look washed out. Developing at this size costs about a quarter of a second.
+WORK_EDGE = 1500        # longest edge we compute on; preview and export share it
 THUMB_EDGE = 360        # cheaper resolution for the suggestion strip
 SOURCE_EDGE = 2400      # incoming photos are capped here; 512 px output needs no more
 OUTPUT_EDGE = 512       # WhatsApp sticker edge
@@ -26,7 +29,7 @@ class Recipe:
 
     rotate: float = 0.0
     crop: list[float] | None = None          # [x0, y0, x1, y1], relative 0..1
-    look: str = "warm"
+    look: str = "as-shot"
     sharpness: float = 1.0
     saturation: float = 1.0
     brightness: float = 1.0
@@ -78,11 +81,17 @@ def _rgb(value: str) -> tuple[int, int, int]:
 
 
 def add_border(rgba: Image.Image, width: int, color=(255, 255, 255),
-               shadow: tuple[int, int, float] | None = None) -> Image.Image:
+               shadow: tuple[int, int, float] | None = None,
+               oversample: int = 3) -> Image.Image:
     """Lay an even border around whatever is opaque, plus an optional shadow.
 
     Uses a distance transform rather than repeated dilation, so the border is
     exactly as wide in a sharp corner as along a straight edge.
+
+    The transform needs a yes-or-no mask, and a yes-or-no mask can only ever be
+    one pixel soft - along a curve that reads as a staircase. So the mask alone
+    is measured at ``oversample`` times the size and the resulting ring is
+    scaled back down. The picture is never resampled.
     """
     if width <= 0 and not shadow:
         return rgba
@@ -92,11 +101,22 @@ def add_border(rgba: Image.Image, width: int, color=(255, 255, 255),
     padded.alpha_composite(rgba, (pad, pad))
     rgba = padded
 
-    alpha = np.asarray(rgba.split()[3]).astype(np.float32) / 255.0
-    distance = ndi.distance_transform_edt(~(alpha > 0.5))
-    ring = np.maximum(np.clip(width + 1.0 - distance, 0, 1), alpha)
-
+    alpha_img = rgba.split()[3]
+    alpha = np.asarray(alpha_img).astype(np.float32) / 255.0
     height, width_px = alpha.shape
+
+    step = max(1, oversample)
+    if step > 1:
+        big = np.asarray(alpha_img.resize((width_px * step, height * step), Image.BILINEAR),
+                         dtype=np.float32) / 255.0
+        distance = ndi.distance_transform_edt(~(big > 0.5))
+        ring_big = np.maximum(np.clip(width * step + 1.0 - distance, 0, 1), big)
+        ring = np.asarray(Image.fromarray((ring_big * 255).astype(np.uint8))
+                          .resize((width_px, height), Image.BOX), dtype=np.float32) / 255.0
+        ring = np.maximum(ring, alpha)
+    else:
+        distance = ndi.distance_transform_edt(~(alpha > 0.5))
+        ring = np.maximum(np.clip(width + 1.0 - distance, 0, 1), alpha)
     canvas = Image.new("RGBA", (width_px, height), (0, 0, 0, 0))
 
     if shadow:
@@ -202,7 +222,12 @@ class Workshop:
 
     def render(self, recipe: Recipe, edge: int = OUTPUT_EDGE, margin: int = 8,
                work_edge: int | None = None) -> Image.Image:
-        """The finished sticker, square, transparent around the die."""
+        """The finished sticker, square, transparent around the die.
+
+        The photo is never scaled up on the way here: it is fitted at its own
+        resolution and the border smooths its edge by oversampling the mask,
+        not the picture.
+        """
         with self._lock:
             image = self._developed(recipe, work_edge or WORK_EDGE)
             scale = edge / OUTPUT_EDGE

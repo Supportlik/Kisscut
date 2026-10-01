@@ -29,9 +29,13 @@ photo -> straighten -> crop -> develop -> cut out -> die -> border -> 512x512 PN
    of the print across the frame and measures its slope, so the tilt is gone before you
    touch anything. An ordinary photo is left alone.
 2. **Crop** to what matters, by dragging a box.
-3. **Develop.** Gray-world white balance against the colour cast, a black point against
-   the veil, lifted shadows, a large-radius local contrast pass that clears reflection
-   haze, and an unsharp mask. Four presets, plus sliders.
+3. **Develop.** Four presets, plus sliders. `as-shot` is the default and changes
+   nothing but a touch of sharpening, because a sticker should look like the photo it
+   came from. `print` runs the full repair chain — gray-world white balance against the
+   colour cast, a black point against the veil, lifted shadows, a large-radius local
+   contrast pass that clears reflection haze — and is selected automatically when a
+   tilted print is detected, since on an ordinary snapshot that same chain would wash
+   the colours out.
 4. **Cut out.** Let a model find the subject, trace it by hand, or keep the whole frame.
 5. **Die.** Follow the subject's own silhouette, or cut it to one of seven shapes — with
    the subject allowed to overlap the edge.
@@ -63,7 +67,13 @@ kisscut serve
 
 That opens the studio at `http://127.0.0.1:8731/`. Drop a photo in, work down the five
 steps on the left, watch the preview on the right — including how it will look at actual
-size in a light and a dark chat — and press **Save sticker**. Files land in `stickers/`.
+size in a light and a dark chat — and press **Download PNG** or **WebP**. (There is also
+a *Save to folder* button, which writes both files to `stickers/` instead.)
+
+Everything except the cutout itself reacts immediately: segmenting is cached per crop and
+developing per look, so moving the border slider re-renders in about a tenth of a second.
+A fresh cutout costs a few seconds, and the model list says which models are the quick
+ones.
 
 Without the interface:
 
@@ -126,9 +136,15 @@ uv run python examples/make_samples.py
 ```
 
 The render path is shared: the studio, the command line and the tests all go through
-`Workshop.render()`, so a preview cannot drift from the saved file. Segmenting is cached
-per crop, developing per look — which is why dragging the border slider re-renders in
-about a tenth of a second while only a new crop pays for a new cutout.
+`Workshop.render()`, so a preview cannot drift from the saved file.
+
+Two decisions are worth knowing before changing anything. The working resolution
+(`WORK_EDGE`) is deliberately well above the 512 px output: a subject filling part of the
+frame has to be scaled *down* into the sticker, and upscaling is exactly what makes a
+cutout look washed out. And the border is traced with a distance transform, which needs a
+yes-or-no mask and can therefore only be one pixel soft — so `add_border` measures the
+mask at three times the size and scales the ring back down, leaving the photo itself
+untouched.
 
 ## License
 
