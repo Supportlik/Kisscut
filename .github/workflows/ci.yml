@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # The model files are a download of several hundred MB, so CI stays on
+      # the tests that do not need them.
+      - name: Run tests
+        run: uv run pytest -m "not models"
+
+      - name: Redraw the sample photos
+        run: uv run python examples/make_samples.py
+
+      - name: Cut a sticker end to end
+        run: uv run kisscut make examples/mug-shelf.jpg --source full --shape bubble --out /tmp/stickers
+
+      - name: Check the result
+        run: |
+          test -f /tmp/stickers/mug-shelf.png
+          test "$(stat -c%s /tmp/stickers/mug-shelf.webp)" -lt 100000

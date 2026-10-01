@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kisscut</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23E4002B'/><circle cx='16' cy='16' r='7' fill='white'/></svg>">
+</head>
+<body>
+
+<header class="bar">
+  <h1>Kisscut</h1>
+  <p class="bar-note" id="photoName">No photo loaded</p>
+  <div class="bar-actions">
+    <label class="btn btn-ghost">
+      Open photo<input type="file" id="fileInput" accept="image/*" hidden>
+    </label>
+    <button class="btn btn-solid" id="saveBtn" disabled>Save sticker</button>
+  </div>
+</header>
+
+<main class="bench">
+
+  <!-- ------------------------------------------------ steps -->
+  <aside class="tools" id="tools">
+
+    <section class="step" data-step="1">
+      <h2><span class="num">1</span>Photo</h2>
+      <div class="drop" id="dropZone">
+        <p>Drop a photo here, or use <em>Open photo</em>.</p>
+        <p class="hint">A photo of a print works too - the tilt gets corrected.</p>
+      </div>
+      <div class="row" id="rotateRow" hidden>
+        <label for="rotate">Straighten</label>
+        <input type="range" id="rotate" min="-20" max="20" step="0.1" value="0">
+        <output id="rotateOut">0.0&deg;</output>
+      </div>
+      <p class="note" id="tiltNote" hidden></p>
+    </section>
+
+    <section class="step" data-step="2">
+      <h2><span class="num">2</span>Frame</h2>
+      <div class="seg" role="group" aria-label="Canvas tool">
+        <button class="seg-btn is-on" data-tool="view">Move</button>
+        <button class="seg-btn" data-tool="crop">Crop</button>
+        <button class="seg-btn seg-signal" data-tool="lasso">Trace</button>
+      </div>
+      <p class="note" id="toolNote">Drag a box to crop, or trace the subject by hand.</p>
+      <div class="row-2">
+        <button class="btn btn-quiet" id="resetCrop">Reset crop</button>
+        <button class="btn btn-quiet" id="clearLasso">Clear trace</button>
+      </div>
+    </section>
+
+    <section class="step" data-step="3">
+      <h2><span class="num">3</span>Cut out</h2>
+      <div class="seg" role="group" aria-label="What to keep">
+        <button class="seg-btn is-on" data-source="model">Find subject</button>
+        <button class="seg-btn" data-source="lasso">My trace</button>
+        <button class="seg-btn" data-source="full">Whole frame</button>
+      </div>
+      <label class="field" id="modelField">
+        <span>Model</span>
+        <select id="model"></select>
+      </label>
+      <p class="note" id="modelNote"></p>
+    </section>
+
+    <section class="step" data-step="4">
+      <h2><span class="num">4</span>Die</h2>
+      <div class="dies" id="dies"></div>
+      <label class="check" id="popField">
+        <input type="checkbox" id="popOut" checked>
+        <span>Let the subject overlap the edge</span>
+      </label>
+      <div class="row" id="zoomRow" hidden>
+        <label for="zoom">Zoom</label>
+        <input type="range" id="zoom" min="0.5" max="2.5" step="0.01" value="1">
+        <output id="zoomOut">1.00&times;</output>
+      </div>
+    </section>
+
+    <section class="step" data-step="5">
+      <h2><span class="num">5</span>Finish</h2>
+      <div class="row">
+        <label for="border">Border</label>
+        <input type="range" id="border" min="0" max="40" step="1" value="14">
+        <output id="borderOut">14 px</output>
+      </div>
+      <div class="swatches" id="swatches">
+        <button class="swatch is-on" data-color="#ffffff" style="--c:#ffffff" title="White"></button>
+        <button class="swatch" data-color="#111111" style="--c:#111111" title="Black"></button>
+        <button class="swatch" data-color="#ffd400" style="--c:#ffd400" title="Yellow"></button>
+        <button class="swatch" data-color="#e4002b" style="--c:#e4002b" title="Red"></button>
+        <label class="swatch swatch-pick" title="Pick a colour">
+          <input type="color" id="colorPick" value="#ffffff">
+        </label>
+      </div>
+      <label class="check">
+        <input type="checkbox" id="shadow" checked>
+        <span>Drop shadow</span>
+      </label>
+
+      <details class="more">
+        <summary>Colour and sharpness</summary>
+        <div class="seg seg-wrap" id="looks" role="group" aria-label="Look"></div>
+        <div class="row">
+          <label for="sharpness">Sharpen</label>
+          <input type="range" id="sharpness" min="0" max="2" step="0.05" value="1">
+          <output id="sharpnessOut">1.00</output>
+        </div>
+        <div class="row">
+          <label for="saturation">Colour</label>
+          <input type="range" id="saturation" min="0.4" max="1.8" step="0.05" value="1">
+          <output id="saturationOut">1.00</output>
+        </div>
+        <div class="row">
+          <label for="brightness">Light</label>
+          <input type="range" id="brightness" min="0.6" max="1.6" step="0.05" value="1">
+          <output id="brightnessOut">1.00</output>
+        </div>
+      </details>
+    </section>
+  </aside>
+
+  <!-- ------------------------------------------------ canvas -->
+  <section class="stage">
+    <div class="stage-frame" id="stageFrame">
+      <canvas id="canvas" width="10" height="10"></canvas>
+      <p class="stage-empty" id="stageEmpty">Open a photo to start</p>
+    </div>
+
+    <div class="shelf">
+      <h3>Suggestions</h3>
+      <div class="shelf-rail" id="shelf"></div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ preview -->
+  <aside class="preview">
+    <div class="preview-head">
+      <h3>Preview</h3>
+      <div class="seg seg-small" role="group" aria-label="Background">
+        <button class="seg-btn is-on" data-bg="light">Light</button>
+        <button class="seg-btn" data-bg="dark">Dark</button>
+      </div>
+    </div>
+
+    <div class="sheet" id="sheet" data-bg="light">
+      <img id="previewImg" alt="Sticker preview">
+      <div class="spinner" id="spinner" hidden></div>
+    </div>
+
+    <p class="meta" id="previewMeta">512 &times; 512 &middot; transparent</p>
+
+    <div class="chat">
+      <h4>In a chat</h4>
+      <div class="chat-pair">
+        <div class="chat-pane chat-light">
+          <div class="bubble">Look at this</div>
+          <img class="chat-sticker" id="chatLight" alt="">
+        </div>
+        <div class="chat-pane chat-dark">
+          <div class="bubble">Look at this</div>
+          <img class="chat-sticker" id="chatDark" alt="">
+        </div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>

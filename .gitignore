@@ -1,0 +1,21 @@
+# Build and packaging
+build/
+dist/
+*.egg-info/
+.venv/
+__pycache__/
+*.py[cod]
+
+# Test and tooling
+.pytest_cache/
+.ruff_cache/
+.coverage
+
+# Stickers Kisscut writes, and whatever photos you drop next to it
+stickers/
+*.local.*
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
