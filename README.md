@@ -1,7 +1,8 @@
 # Kisscut
 
 [![CI](https://github.com/Supportlik/Kisscut/actions/workflows/ci.yml/badge.svg)](https://github.com/Supportlik/Kisscut/actions/workflows/ci.yml)
-[![Python versions](https://img.shields.io/badge/python-3.11%20%E2%80%93%203.14-blue.svg)](https://www.python.org/)
+[![PyPI](https://img.shields.io/pypi/v/kisscut.svg)](https://pypi.org/project/kisscut/)
+[![Python versions](https://img.shields.io/pypi/pyversions/kisscut.svg)](https://pypi.org/project/kisscut/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Kisscut** — named after the cut that makes a sticker a sticker: the blade goes through
@@ -45,15 +46,19 @@ photo -> straighten -> crop -> develop -> cut out -> die -> border -> 512x512 PN
 ## Installation
 
 Requires Python ≥ 3.11 — the floor comes from onnxruntime, which no longer ships
-wheels for 3.10. Not on PyPI yet, so install it from the repository:
+wheels for 3.10.
+
+```bash
+uv tool install kisscut        # as an isolated tool (recommended)
+pip install kisscut            # or into the current environment
+```
+
+Or from a checkout, if you want to change something:
 
 ```bash
 git clone https://github.com/Supportlik/Kisscut.git
 cd Kisscut
-
-uv tool install .              # as an isolated tool, then: kisscut serve
-uv run kisscut serve           # or straight from the checkout
-pip install -e .               # or into the current environment
+uv run kisscut serve
 ```
 
 The cutout models come from [rembg](https://github.com/danielgatis/rembg) and download
