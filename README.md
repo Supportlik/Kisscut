@@ -40,11 +40,15 @@ photo -> straighten -> crop -> develop -> cut out -> die -> border -> 512x512 PN
 
 ## Installation
 
-Requires Python ≥ 3.10.
+Requires Python ≥ 3.10. Not on PyPI yet, so install it from the repository:
 
 ```bash
-uv tool install kisscut        # as an isolated tool
-pip install kisscut            # or into the current environment
+git clone https://github.com/Supportlik/Kisscut.git
+cd Kisscut
+
+uv tool install .              # as an isolated tool, then: kisscut serve
+uv run kisscut serve           # or straight from the checkout
+pip install -e .               # or into the current environment
 ```
 
 The cutout models come from [rembg](https://github.com/danielgatis/rembg) and download
