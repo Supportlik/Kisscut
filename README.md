@@ -1,7 +1,7 @@
 # Kisscut
 
 [![CI](https://github.com/Supportlik/Kisscut/actions/workflows/ci.yml/badge.svg)](https://github.com/Supportlik/Kisscut/actions/workflows/ci.yml)
-[![Python versions](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.14-blue.svg)](https://www.python.org/)
+[![Python versions](https://img.shields.io/badge/python-3.11%20%E2%80%93%203.14-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Kisscut** — named after the cut that makes a sticker a sticker: the blade goes through
@@ -44,7 +44,8 @@ photo -> straighten -> crop -> develop -> cut out -> die -> border -> 512x512 PN
 
 ## Installation
 
-Requires Python ≥ 3.10. Not on PyPI yet, so install it from the repository:
+Requires Python ≥ 3.11 — the floor comes from onnxruntime, which no longer ships
+wheels for 3.10. Not on PyPI yet, so install it from the repository:
 
 ```bash
 git clone https://github.com/Supportlik/Kisscut.git

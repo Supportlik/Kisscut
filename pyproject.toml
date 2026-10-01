@@ -7,7 +7,7 @@ name = "kisscut"
 dynamic = ["version"]
 description = "Photo to WhatsApp sticker: cut out the subject, cut it to shape, give it a border - in the browser or from the command line"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Michael Bortlik", email = "michael@bortlik.io" }]
@@ -19,7 +19,6 @@ classifiers = [
   "Intended Audience :: End Users/Desktop",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
@@ -29,6 +28,8 @@ classifiers = [
 ]
 # The web interface is standard library only; these four do the image work.
 # rembg carries the segmentation models and onnxruntime.
+# Python 3.11 is the floor because onnxruntime, which rembg pulls in for the
+# cutout models, stopped shipping wheels for 3.10.
 dependencies = [
   "Pillow>=10.0",
   "numpy>=1.24",
