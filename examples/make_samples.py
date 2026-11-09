@@ -77,7 +77,6 @@ def balloon_layer(scale: float) -> Image.Image:
     ImageDraw.Draw(envelope).ellipse((cx - rx, cy - ry, cx + rx, cy + ry * 1.05), fill=255)
     layer.paste(stripes, (0, 0), envelope)
 
-    draw = ImageDraw.Draw(layer)
     shade = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     ImageDraw.Draw(shade).ellipse((cx - rx, cy - ry, cx + rx * 0.2, cy + ry), fill=(20, 24, 40, 46))
     layer.paste(Image.alpha_composite(layer.crop((0, 0, width, height)), shade), (0, 0), envelope)

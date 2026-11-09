@@ -18,6 +18,8 @@ All notable changes to this project are documented here. The format follows
   another site, which closes it to cross-site request forgery.
 - Reject a negative or malformed `Content-Length` instead of reading the
   request until the connection closes.
+- The studio serves its own files from a fixed table instead of building a
+  path from the URL, and strips line breaks from every response header.
 
 ### Changed
 

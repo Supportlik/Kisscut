@@ -29,6 +29,11 @@ MAX_UPLOAD = 40 * 1024 * 1024
 MAX_WORKSHOPS = 8
 SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
+# Every file the studio may serve, looked up by name. A request picks an entry
+# from this table and never builds a path of its own, so nothing outside the
+# web folder can be reached however the URL is spelled.
+ASSETS = {f.relative_to(WEB_DIR).as_posix(): f for f in WEB_DIR.rglob("*") if f.is_file()}
+
 #: Thumbnails offered under the canvas: a name and the fields it overrides.
 SUGGESTIONS = [
     ("Classic", dict(shape="silhouette", border=14, shadow=False)),
@@ -81,11 +86,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def _send(self, code: int, body: bytes, content_type: str, extra: dict | None = None):
         self.send_response(code)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        for key, value in (extra or {}).items():
-            self.send_header(key, value)
+        headers = {"Content-Type": content_type, "Content-Length": str(len(body)),
+                   "Cache-Control": "no-store", **(extra or {})}
+        for key, value in headers.items():
+            # No header may smuggle in a line break and start a header of its own.
+            self.send_header(key, str(value).replace("\r", "").replace("\n", ""))
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
@@ -136,7 +141,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._fail(403, "forbidden")
         path = unquote(urlparse(self.path).path)
         if path == "/":
-            return self._file(WEB_DIR / "index.html")
+            return self._file(ASSETS["index.html"])
         if path == "/api/meta":
             return self._json({
                 "models": cutout.MODELS,
@@ -148,8 +153,8 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/source/"):
             return self._source(path.rsplit("/", 1)[-1])
         if path.startswith("/assets/"):
-            target = (WEB_DIR / path[len("/assets/"):]).resolve()
-            if WEB_DIR.resolve() in target.parents and target.is_file():
+            target = ASSETS.get(path[len("/assets/"):])
+            if target is not None:
                 return self._file(target)
         return self._fail(404, "not found")
 
@@ -162,7 +167,8 @@ class Handler(BaseHTTPRequestHandler):
     def _source(self, key: str):
         shop = self.studio.get(key)
         if not shop:
-            return self._fail(404, "photo not open")
+            self._fail(404, "photo not open")
+            return
         img = shop.source
         scale = min(1.0, 1600 / max(img.size))
         if scale < 1.0:
