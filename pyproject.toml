@@ -27,11 +27,13 @@ classifiers = [
   "Topic :: Multimedia :: Graphics :: Editors :: Raster-Based",
 ]
 # The web interface is standard library only; these four do the image work.
+# Pillow 13.0 is the floor because every earlier release decodes untrusted
+# images with known memory-safety bugs, and the studio opens whatever is dropped in.
 # rembg carries the segmentation models and onnxruntime.
 # Python 3.11 is the floor because onnxruntime, which rembg pulls in for the
 # cutout models, stopped shipping wheels for 3.10.
 dependencies = [
-  "Pillow>=10.0",
+  "Pillow>=13.0",
   "numpy>=1.24",
   "scipy>=1.10",
   "rembg[cpu]>=2.0.60",

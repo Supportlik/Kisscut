@@ -4,29 +4,39 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
+    name: Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           python-version: ${{ matrix.python-version }}
+          enable-cache: true
 
       # The model files are a download of several hundred MB, so CI stays on
       # the tests that do not need them.
       - name: Run tests
-        run: uv run pytest -m "not models"
+        run: uv run --locked pytest -m "not models"
 
       - name: Redraw the sample photos
-        run: uv run python examples/make_samples.py
+        run: uv run --locked python examples/make_samples.py
 
       - name: Cut a sticker end to end
-        run: uv run kisscut make examples/mug-shelf.jpg --source full --shape bubble --out /tmp/stickers
+        run: uv run --locked kisscut make examples/mug-shelf.jpg --source full --shape bubble --out /tmp/stickers
 
       - name: Check the result
         run: |

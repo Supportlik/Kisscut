@@ -55,7 +55,9 @@ class Recipe:
 
     def _digest(self, keys: tuple[str, ...]) -> str:
         payload = {k: getattr(self, k) for k in keys}
-        return hashlib.md5(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:16]
+        # A cache key, not a security boundary.
+        return hashlib.md5(json.dumps(payload, sort_keys=True).encode(),
+                           usedforsecurity=False).hexdigest()[:16]
 
     @property
     def frame_key(self) -> str:

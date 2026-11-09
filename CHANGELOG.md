@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-11-09
+
+### Security
+
+- Require Pillow 13.0 or later. Earlier releases carry known memory-safety
+  and denial-of-service bugs in their image decoders, and the studio opens
+  whatever file is dropped into it. The lockfile also moves certifi to a
+  release without the distrusted emSign roots.
+- The studio now refuses requests that were not addressed to it (a `Host`
+  other than `127.0.0.1` or `localhost` on its own port), which closes it to
+  DNS rebinding, and refuses `POST`s that a browser reports as coming from
+  another site, which closes it to cross-site request forgery.
+- Reject a negative or malformed `Content-Length` instead of reading the
+  request until the connection closes.
+
+### Changed
+
+- CI runs with read-only permissions against the lockfile; dependency audit,
+  Trivy, CodeQL and dependency review run on every pull request and weekly,
+  and Dependabot keeps dependencies and actions up to date.
+
 ## [1.0.0] - 2026-10-01
 
 First release.
