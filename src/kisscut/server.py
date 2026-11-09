@@ -97,13 +97,43 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"error": message}, code)
 
     def _body(self) -> bytes:
-        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            raise ValueError("bad Content-Length") from None
+        if length < 0:
+            raise ValueError("bad Content-Length")
         if length > MAX_UPLOAD:
             raise ValueError("file too large")
         return self.rfile.read(length)
 
+    # The studio listens on loopback only, but a web page open in the same
+    # browser can still reach it: by POSTing straight at 127.0.0.1 (cross-site
+    # request forgery) or by pointing a hostname of its own at 127.0.0.1 (DNS
+    # rebinding), which would let it read the photos that are open. Both are
+    # shut out by insisting that the request was addressed to, and - when a
+    # browser says where it came from - sent by, the studio itself.
+    def _local_names(self) -> set[str]:
+        port = self.server.server_address[1]
+        return {f"127.0.0.1:{port}", f"localhost:{port}"}
+
+    def _trusted(self, writing: bool = False) -> bool:
+        names = self._local_names()
+        if (self.headers.get("Host") or "").lower() not in names:
+            return False
+        if not writing:
+            # Reading is side-effect free and the browser keeps another
+            # site from seeing the answer, so following a link here is fine.
+            return True
+        origin = self.headers.get("Origin")
+        if origin is not None and origin.lower() not in {f"http://{n}" for n in names}:
+            return False
+        return self.headers.get("Sec-Fetch-Site", "same-origin") in ("same-origin", "none")
+
     # ----------------------------------------------------------------- GET
     def do_GET(self):
+        if not self._trusted():
+            return self._fail(403, "forbidden")
         path = unquote(urlparse(self.path).path)
         if path == "/":
             return self._file(WEB_DIR / "index.html")
@@ -143,6 +173,8 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------------------------------------------------------------- POST
     def do_POST(self):
+        if not self._trusted(writing=True):
+            return self._fail(403, "forbidden")
         path = unquote(urlparse(self.path).path)
         try:
             if path == "/api/open":
